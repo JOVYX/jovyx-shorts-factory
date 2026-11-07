@@ -47,7 +47,7 @@ class Settings(BaseSettings):
     youtube_redirect_uri: str = "http://localhost:8000/api/publishing/youtube/callback"
 
     model_config = SettingsConfigDict(
-        env_file=str(BASE_DIR / ".env"),
+        env_file=(str(BASE_DIR.parent / ".env"), str(BASE_DIR / ".env")),
         env_file_encoding="utf-8",
         extra="ignore"
     )

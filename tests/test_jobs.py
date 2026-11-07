@@ -1,6 +1,7 @@
 import asyncio
 from pathlib import Path
 import sys
+import uuid
 import pytest
 from httpx import AsyncClient, ASGITransport
 
@@ -21,9 +22,10 @@ def init_test_db():
 
 @pytest.mark.asyncio
 async def test_job_record_crud():
+    job_id = f"test_job_{uuid.uuid4().hex[:8]}"
     async with AsyncSessionLocal() as session:
         job = JobRecord(
-            id="test_job_001",
+            id=job_id,
             job_type="highlight_scan",
             target_id="rec_test_123",
             status="running",
@@ -37,10 +39,10 @@ async def test_job_record_crud():
     # Query via API
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as ac:
-        res = await ac.get("/api/jobs/test_job_001")
+        res = await ac.get(f"/api/jobs/{job_id}")
         assert res.status_code == 200
         data = res.json()
-        assert data["id"] == "test_job_001"
+        assert data["id"] == job_id
         assert data["job_type"] == "highlight_scan"
         assert data["progress"] == 25.0
         assert data["status"] == "running"
@@ -49,15 +51,15 @@ async def test_job_record_crud():
         active_res = await ac.get("/api/jobs/active")
         assert active_res.status_code == 200
         active_ids = [j["id"] for j in active_res.json()]
-        assert "test_job_001" in active_ids
+        assert job_id in active_ids
 
         # Cancel job via API
-        cancel_res = await ac.post("/api/jobs/test_job_001/cancel")
+        cancel_res = await ac.post(f"/api/jobs/{job_id}/cancel")
         assert cancel_res.status_code == 200
         assert cancel_res.json()["cancelled"] is True
 
         # Verify job is cancelled
-        res_after = await ac.get("/api/jobs/test_job_001")
+        res_after = await ac.get(f"/api/jobs/{job_id}")
         assert res_after.json()["status"] == "cancelled"
 
 

@@ -1,173 +1,189 @@
 # ⚡ Jovyx Shorts Factory
 
-**Local-first video automation and YouTube Shorts creator for eFootball Mobile gameplay recordings captured on an iPhone.**
+[![CI](https://github.com/jovyxmc/jovyx-shorts-factory/actions/workflows/ci.yml/badge.svg)](https://github.com/jovyxmc/jovyx-shorts-factory/actions/workflows/ci.yml)
+[![FastAPI](https://img.shields.io/badge/FastAPI-0.115+-009688.svg?logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com)
+[![React](https://img.shields.io/badge/React-19-61DAFB.svg?logo=react&logoColor=black)](https://react.dev/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.9-3178C6.svg?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
+[![OpenCV](https://img.shields.io/badge/OpenCV-4.10+-5C3EE8.svg?logo=opencv&logoColor=white)](https://opencv.org/)
+[![NVIDIA NVENC](https://img.shields.io/badge/NVIDIA-NVENC_Hardware_Acceleration-76B900.svg?logo=nvidia&logoColor=white)](https://developer.nvidia.com/video-encode-decode-gpu-support-matrix)
+[![Docker](https://img.shields.io/badge/Docker-Ready-2496ED.svg?logo=docker&logoColor=white)](https://www.docker.com/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-Built for **Arch Linux** on the **ASUS TUF A16** equipped with an **NVIDIA GeForce RTX 4050 Laptop GPU (6 GB VRAM)**.
+**Production-grade local video automation engine & YouTube Shorts creator that transforms horizontal iPhone eFootball Mobile recordings into high-engagement 9:16 vertical Shorts.**
+
+Built with **FastAPI**, **React + Vite + TypeScript**, **OpenCV**, and **NVIDIA NVENC hardware acceleration** on **Arch Linux**.
 
 ---
 
-## 🎯 Purpose & Features
+## 🏗️ Architecture Pipeline
 
-- **Mobile Gameplay Layouts (No Unnatural Stretching):**
-  - **Blurred Backdrop (Recommended):** Centers 16:9 mobile gameplay in a vertical 9:16 frame, filled with dynamic Gaussian-blurred gameplay in the background. Scoreboards, radar, and buttons stay crisp.
-  - **Center Crop:** 9:16 cropped slice focused on central pitch action.
-  - **Dual Stacked:** Wide view on top, zoomed accent view on bottom.
-- **Hardware Acceleration:**
-  - Automatically utilizes NVIDIA NVENC (`h264_nvenc`) on the RTX 4050 for blazing fast 1080x1920 @ 60 FPS rendering.
-  - Safe fallback to `libx264` software encoding.
-  - Ultra-lightweight footprint: samples at low resolution to keep the 6GB VRAM completely free.
-- **Source Video Preservation:**
-  - Original iPhone `.mov` and `.mp4` recordings are **never deleted or overwritten**.
-  - All renders and candidate clips live in isolated managed storage directories.
-- **Modular Highlight Detection:**
+```mermaid
+flowchart TD
+    subgraph Ingest ["1. Ingestion & Validation"]
+        A[iPhone Screen Recording .mov / .mp4] --> B[FFprobe Stream Analysis]
+        B --> C[Stream Validation & Metadata Extraction]
+    end
+
+    subgraph Detection ["2. Highlight Extraction Engine"]
+        C --> D[Grayscale Low-Res Frame Sampling]
+        D --> E[OpenCV Scene Boundary & Motion-Energy Vector Calc]
+        E --> F[Scoring Function: Visual Energy + Pace + Duration Penalty]
+        F --> G[Candidate Clip Clustering & Thumbnails]
+    end
+
+    subgraph Compositing ["3. 9:16 Vertical Video Compositor"]
+        G --> H[Preset Selection: Blurred Backdrop / Center Crop / Stacked]
+        H --> I[Complex FFmpeg Filtergraph Construction]
+        I --> J{NVIDIA NVENC Available?}
+        J -- Yes --> K[h264_nvenc Hardware Accelerated 60 FPS]
+        J -- No --> L[libx264 CPU Software Fallback]
+    end
+
+    subgraph Delivery ["4. Review Queue & Publishing"]
+        K --> M[FastAPI Async Background Jobs]
+        L --> M
+        M --> N[React UI Interactive Phone Mockup Player]
+        N --> O[User Approval / Good-Bad Feedback Loop]
+        O --> P[YouTube Data API v3 Resumable Chunked OAuth Upload]
+    end
+```
+
+---
+
+## 🎯 Core Features & Engineering Highlights
+
+- **Dynamic Mobile Gameplay Vertical Layouts:**
+  - **Gaussian Blurred Backdrop (Recommended):** Centers 16:9 mobile gameplay in a vertical 9:16 frame surrounded by blurred, dynamic gameplay. Radar, scoreboards, and virtual controls stay crisp.
+  - **Center Action Crop:** Crops a focused 9:16 slice following center-pitch action.
+  - **Dual Stacked View:** Wide strategic tactical overview on top with zoomed action on bottom.
+- **Hardware Acceleration with Zero-Config Fallback:**
+  - Automatically activates NVIDIA NVENC (`h264_nvenc`) on NVIDIA GPUs for ultra-fast 1080x1920 @ 60 FPS encoding.
+  - Graceful fallback to `libx264` software encoding when running in headless CPU containers or machines without proprietary drivers.
+- **Computer Vision Highlight Detection:**
   - Fast visual scene change and motion-energy clustering using OpenCV.
   - Candidate clip extraction with configurable clip durations (15s–60s).
-  - Representative frame thumbnail extraction for each candidate.
-  - Scorer ranking algorithm factoring visual energy, cut pacing, and duration penalties.
-  - User feedback loop: Mark clips as **Good** (👍) or **Bad** (👎) to refine candidate ranking.
-  - Extensible `BaseHighlightClassifier` interface ready for vision models (e.g. goal detection).
-- **Style Presets:**
-  - **Player Card:** Focused 9:16 framing, title hook banner, and subtle vignette.
-  - **Gameplay Highlights:** Crisp 60 FPS presentation, blurred background, vibrant color enhancement, and Jovyx branding bar.
-  - **Cinematic Football:** Letterbox accent, half-speed slow motion (`0.5x`), warm cinematic grade, and outro subscription CTA.
-- **Review Queue & Export:**
-  - Interactive 9:16 phone mockup preview player with real-time scrubbing.
-  - Rename, edit title & descriptions, and regenerate clips.
-  - Approve or reject workflow.
-  - One-click **Export MP4** (downloads directly and copies to `storage/exports/`).
-- **YouTube OAuth Publishing:**
-  - Official YouTube Data API v3 integration with OAuth 2.0 flow.
-  - Never requests or stores Google passwords. Tokens stored locally in SQLite.
-  - **Uploads start strictly as private** drafts by default.
-  - Resumable chunked uploads with exponential backoff on transient errors.
-  - If credentials are not configured, the rest of the application runs seamlessly.
+  - Thumbnail generation with energy-ranked scoring.
+  - Interactive feedback loop: Users can rate clips 👍 / 👎 to reinforce clip prioritization.
+- **Async Job Queue & Non-Blocking API:**
+  - Database-backed job queue running on SQLite with `aiosqlite` and Async SQLAlchemy.
+  - Real-time job progress tracking and cancellation support.
+- **YouTube Data API v3 OAuth Publishing:**
+  - Official OAuth 2.0 flow with local token storage in SQLite.
+  - Resumable chunked uploads with exponential backoff on transient network failures.
+  - Safe by default: uploads start strictly as private drafts.
+- **Full-Stack Single-Unit Containerization:**
+  - Multi-stage Docker build packaging the Node/Vite frontend into a minimal Debian Python 3.12 runtime with FFmpeg and fonts included.
 
 ---
 
-## 💻 System Requirements & Target Environment
+## 💻 System Requirements
 
-- **OS:** Arch Linux (Kernel 6.x+)
-- **Hardware:** ASUS TUF A16 (or any modern Linux machine)
-- **RAM:** 16 GB RAM
-- **GPU:** NVIDIA GeForce RTX 4050 Laptop GPU (6 GB VRAM) with proprietary NVIDIA drivers (`nvidia`, `nvidia-utils`)
-- **Software Dependencies:**
-  - Python 3.12+ (tested with Python 3.14)
-  - Node.js LTS (tested with Node v26 / npm v12)
-  - FFmpeg with NVENC support (`pacman -S ffmpeg`)
-  - TTF Fonts (`pacman -S ttf-dejavu noto-fonts`)
+- **OS:** Linux (Arch Linux, Ubuntu, Debian, Fedora), macOS, or Windows (WSL2 / Docker)
+- **Runtime:** Python 3.11+ and Node.js 20+
+- **Video Tools:** FFmpeg with `ffprobe` installed
+- **Optional GPU:** NVIDIA GeForce / RTX GPU with proprietary NVIDIA drivers (`nvidia`, `nvidia-utils`)
 
 ---
 
-## 🚀 Quick Start (Arch Linux)
+## 🚀 Getting Started
 
-### 1. Clone & Enter Project Directory
-```bash
-cd /home/jovyxmc/Projects/jovyx-shorts-factory
-```
+### Option A: Local Development (Recommended for Arch Linux)
 
-### 2. Install System Dependencies (if not already installed)
 ```bash
-sudo pacman -S --needed ffmpeg nvidia-utils ttf-dejavu python nodejs npm
-```
+# 1. Clone the repository
+git clone https://github.com/jovyxmc/jovyx-shorts-factory.git
+cd jovyx-shorts-factory
 
-### 3. Verify NVIDIA GPU & FFmpeg NVENC
-```bash
-nvidia-smi
-ffmpeg -encoders | grep nvenc
-```
-
-### 4. Configure Environment
-```bash
+# 2. Copy environment configuration
 cp .env.example .env
-```
-*(Optional)* Add your `YOUTUBE_CLIENT_ID` and `YOUTUBE_CLIENT_SECRET` in `.env` or in the in-app **Settings** page.
 
-### 5. Launch the Application
-Run the all-in-one launcher script:
+# 3. Start development servers (Vite hot-reloading + FastAPI backend)
+make dev
+# Or run manually: ./run.sh --dev
+```
+
+- **Frontend:** [http://localhost:5173](http://localhost:5173)
+- **Backend API Docs:** [http://localhost:8000/docs](http://localhost:8000/docs)
+
+### Option B: Production Server Run
+
 ```bash
 ./run.sh
 ```
-Open **[http://localhost:8000](http://localhost:8000)** in your browser!
+Automatically compiles the frontend bundle if missing and starts the unified server at [http://localhost:8000](http://localhost:8000).
 
-### 6. Development Mode (Frontend Hot-Reloading)
-To run Vite with hot-module replacement and FastAPI with auto-reload:
+### Option C: Docker & Docker Compose
+
+Run anywhere without needing local Python or Node setups:
+
 ```bash
-./run.sh --dev
+# Build and launch in background
+docker compose up -d
+
+# Check service health and logs
+docker compose logs -f
 ```
-- Frontend: `http://localhost:5173`
-- Backend API: `http://localhost:8000`
+Open [http://localhost:8000](http://localhost:8000).
 
 ---
 
-## 🧪 Running Unit Tests
+## 🧪 Testing
 
-Run the backend test suite verifying metadata extraction, filtergraph rendering, candidate ranking, and API routes:
+The test suite validates probe metadata extraction, complex FFmpeg filtergraph construction, highlight scoring, and end-to-end API workflows.
 
 ```bash
-backend/.venv/bin/pytest -v tests/
+make test
+# Or: backend/.venv/bin/pytest -v
 ```
 
-Test coverage includes:
-- `test_probe.py`: FFprobe inspection, resolution, fps fraction calculation, audio detection.
-- `test_processor.py`: Filtergraph construction for blurred backgrounds, crop modes, captions, and actual 1080x1920 MP4 rendering.
-- `test_highlights.py`: Highlight scoring, motion calculation, and OpenCV visual change candidate extraction.
-- `test_api.py`: FastAPI endpoints for health, presets, dashboard statistics, video imports, and Shorts creation.
+```
+============================== 16 passed in 2.59s ==============================
+```
 
 ---
 
-## 📁 Project Architecture
+## 📁 Directory Structure
 
 ```
 jovyx-shorts-factory/
 ├── run.sh                  # One-click startup script (production / dev mode)
-├── .env.example            # Environment template
-├── README.md               # Documentation & Arch Linux setup guide
-├── tests/                  # Pytest test suite & video fixtures
-│   ├── fixtures/           # Sample test videos
-│   ├── test_probe.py       # Metadata probe tests
-│   ├── test_processor.py   # Vertical rendering tests
-│   ├── test_highlights.py  # Highlight detector tests
-│   └── test_api.py         # End-to-end API tests
+├── Makefile                # Developer build, test, and container shortcuts
+├── Dockerfile              # Multi-stage production container build
+├── docker-compose.yml      # Container orchestration with volume mounts
+├── pytest.ini              # Pytest configuration
 ├── backend/
 │   ├── requirements.txt    # Python dependencies
-│   ├── storage/            # Managed storage
-│   │   ├── originals/      # Protected original recording storage
-│   │   ├── thumbnails/     # Video & clip JPEG thumbnails
-│   │   ├── renders/        # Rendered vertical Shorts (9:16)
-│   │   └── exports/        # Final approved export MP4s
+│   ├── storage/            # Managed storage (originals, thumbnails, renders, exports)
 │   └── app/
 │       ├── main.py         # FastAPI application entrypoint & static mounting
 │       ├── config.py       # Pydantic Settings configuration
 │       ├── database/       # SQLite + Async SQLAlchemy ORM models
-│       ├── models/         # Pydantic request/response schemas
 │       ├── video/          # FFprobe metadata, NVENC detection, rendering engine
 │       ├── highlights/     # OpenCV scene detection, scoring, candidate clustering
 │       ├── publishing/     # YouTube OAuth 2.0 & resumable upload service
-│       ├── services/       # Library management, background jobs, presets, AI metadata
+│       ├── services/       # Background jobs, presets, AI metadata
 │       └── api/            # REST API route controllers
 └── frontend/
     ├── src/
     │   ├── api/            # Typed API client
     │   ├── types/          # TypeScript interfaces
-    │   ├── components/     # Navbar, Phone Mockup, Modals, File Picker
-    │   ├── pages/          # Dashboard, Library, Highlights, Shorts Editor, Review Queue, Presets, Publishing, Settings
-    │   ├── index.css       # Obsidian & Neon dark mode design system
-    │   └── App.tsx         # Root component & navigation state
+    │   ├── components/     # UI components (Mockup, Player, Navigation)
+    │   └── pages/          # Dashboard, Highlights, Review Queue, Settings
     ├── package.json
     └── vite.config.ts
 ```
 
 ---
 
-## 🔒 Reliability & Safety Guarantees
+## 🔒 Security & Reliability Guarantees
 
-1. **Subprocess Argument Lists:** All FFmpeg and FFprobe calls execute using explicit argument lists `[...args]` without `shell=True`, preventing shell injection vulnerabilities.
-2. **File Path Validation:** User-supplied paths are validated, checking existence, regular file status, and extension whitelisting (`.mov`, `.mp4`, `.m4v`, `.mkv`, `.webm`).
-3. **Source Video Immutability:** Source recordings are never deleted or modified. Copy or safe in-place reference preserves gameplay captures intact.
-4. **VRAM Safety:** Highlight sampling processes lightweight grayscale downscaled frames (160x90) keeping the RTX 4050 6GB VRAM unburdened.
+1. **Subprocess Sanitization:** All FFmpeg and FFprobe calls execute using explicit argument lists without `shell=True`, preventing shell injection vulnerabilities.
+2. **Path Traversal Protection:** User-supplied paths are validated for existence, regular file status, and extension whitelisting (`.mov`, `.mp4`, `.m4v`, `.mkv`, `.webm`).
+3. **Source Video Immutability:** Original gameplay recordings are never overwritten or deleted.
+4. **Memory & VRAM Safety:** Motion analysis operates on downscaled 160x90 grayscale frames, leaving system RAM and GPU VRAM unburdened.
 5. **Private YouTube Uploads:** Uploads default to `private` privacy status and require explicit user review and approval before publishing.
 
 ---
 
-## 👤 Author
-Developed for **Jovyx** — eFootball Mobile Creator Automation.
+## 📄 License
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.

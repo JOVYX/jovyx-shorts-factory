@@ -1,0 +1,30 @@
+services:
+  shorts-factory:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: jovyx-shorts-factory:latest
+    container_name: jovyx-shorts-factory
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      - APP_ENV=production
+      - DEBUG=false
+      - ENCODER_PREFERENCE=auto
+    volumes:
+      - ./backend/storage:/app/backend/storage
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    # Uncomment the block below to enable NVIDIA GPU acceleration inside the container
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: all
+    #           capabilities: [gpu, video]
